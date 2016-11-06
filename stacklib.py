@@ -457,32 +457,12 @@ class StackMap(object):
     ###########################################################################
     
     #plot and saving methods###################################################
-    def plotfullmap(self):
-        return plt.imshow(self.fullmap, origin = 'lower',
-                          interpolation = 'none')
-         
-    def plotsubmap(self):
-        return plt.imshow(self.submap, origin = 'lower',
-                          interpolation = 'none')
-    
-    def plotsubmapw(self):
-        return plt.imshow(self.submapw, origin = 'lower',
-                          interpolation = 'none')
-        
     def savefullmapfits(self,filename):
         return fits.writeto(filename, self.fullmap, self.maphdr)
     
     def savesubmapfits(self,filename):
         return fits.writeto(filename, self.submap)
         
-    def plotsubmapzpad(self):
-        return plt.imshow(self.submapzpad, origin = 'lower',
-                          interpolation = 'none')
-    
-    def plotsubmapzpad2(self):
-        return plt.imshow(self.submapzpad2, origin = 'lower',
-                          interpolation = 'none')
-
     def plot(self, Type, circle = False):
         
         fig,ax = plt.subplots(1)
@@ -491,6 +471,8 @@ class StackMap(object):
             img = self.fullmap
         if Type == "submap":
             img = self.submap
+        if Type == "submapw":
+            img = self.submapw
         if Type == "submapzpad":
             img = self.submapzpad
         if Type == "submapzpad2":
