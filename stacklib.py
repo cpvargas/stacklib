@@ -8,9 +8,6 @@ from scipy import ndimage
 from scipy.misc import imresize
 from matplotlib.patches import Circle
 
-from datetime import datetime
-startTime = datetime.now()
-
 def beam(beamfile, pixsize, radius):
     '''
     generates a 2D beam profile: 2Darray of size (2*radius+1, 2*radius+1)
@@ -65,7 +62,6 @@ def beammap(beamfile, mapheader):
     '''
     pixsize = abs(mapheader['CDELT1'])
     radius = int(1./pixsize)
-    #radius = 2
     
     Beam = beam(beamfile, pixsize, radius)
 
@@ -321,13 +317,11 @@ class StackMap(object):
 
         
     #filter methods############################################################
-    
     def filterfullmap(self):
         self.filt = matchedfilter(self.fullmap,self.beammap)
         self.fullmap = filtermap(self.fullmap,self.filt)
         
     ###########################################################################
-
     def unsqueezefullmap(self):
         '''
         Reverse the pixel-wise multiplication
@@ -340,10 +334,8 @@ class StackMap(object):
         px, py = np.array(np.round(self.w.wcs_world2pix(coord, 0),0),
                           dtype=np.int_)[0]
         return px,py
+        
     #submaps methods###########################################################
-    
-    
-    
     def setsubmapL(self, L):
         '''
         sets the submap lenght L in pixels
@@ -432,7 +424,6 @@ class StackMap(object):
     ###########################################################################
     
     #stacking methods##########################################################
-    
     def setstackmap(self):
         '''
         sets the stackmap: the map in which we will stack submaps
@@ -467,13 +458,16 @@ class StackMap(object):
     
     #plot and saving methods###################################################
     def plotfullmap(self):
-        return plt.imshow(self.fullmap, origin = 'lower',interpolation = 'none')
+        return plt.imshow(self.fullmap, origin = 'lower',
+                          interpolation = 'none')
          
     def plotsubmap(self):
-        return plt.imshow(self.submap, origin = 'lower',interpolation = 'none')
+        return plt.imshow(self.submap, origin = 'lower',
+                          interpolation = 'none')
     
     def plotsubmapw(self):
-        return plt.imshow(self.submapw, origin = 'lower',interpolation = 'none')
+        return plt.imshow(self.submapw, origin = 'lower',
+                          interpolation = 'none')
         
     def savefullmapfits(self,filename):
         return fits.writeto(filename, self.fullmap, self.maphdr)
@@ -482,10 +476,12 @@ class StackMap(object):
         return fits.writeto(filename, self.submap)
         
     def plotsubmapzpad(self):
-        return plt.imshow(self.submapzpad, origin = 'lower',interpolation = 'none')
+        return plt.imshow(self.submapzpad, origin = 'lower',
+                          interpolation = 'none')
     
     def plotsubmapzpad2(self):
-        return plt.imshow(self.submapzpad2, origin = 'lower',interpolation = 'none')
+        return plt.imshow(self.submapzpad2, origin = 'lower',
+                          interpolation = 'none')
 
     def plot(self, Type):
         
@@ -524,118 +520,4 @@ class StackMap(object):
         ax.add_patch(circ) 
         
         return plt.savefig(filename)
-
     ###########################################################################
-
-"""
-m = 'ACT_148_equ_season_3_1way_v3_src_free.fits'
-w = 'ACT_148_equ_season_3_1way_calgc_strictcuts2_weights.fits'
-b = 'profile_AR1_2009_pixwin_130224.txt'
-s = 'Equa_mask_15mJy.fits'
-"""
-
-""" 
-RA0 = 55.
-RA1 = 324.
-DEC0 = -1.5
-DEC1 = 1.5
-
-
-M = StackMap(m,w,b,s,RA0,RA1,DEC0,DEC1)
-
-M.squeezefullmap()
-
-M.filterfullmap()
-
-M.setsubmapL(32)
-
-M.setsubmap(28.1764,1.0059)
-
-#M.setstackmap()
-
-#M.setsubmap(3.7276,-0.9502)        
-#M.setsubmap(5.5553,-0.6050)
-#M.setsubmap(28.1764,1.0059)
-#M.setsubmap(40.3129,-0.3109)
-#M.setsubmap(51.7075,-0.7312)
-#M.setsubmap(335.1922,-0.7095) #
-
-
-
-M.zpadsubmap(512)
-
-M.recenter()
-
-M.redcenters()
-
-#arr = M.submapzpad2
-#y = np.where(arr == arr.min())[0][0]
-#x = np.where(arr == arr.min())[1][0]
-#print arr[y,x]
-#arr[y,x] = 150
-
-#M.stacksubmap()
-
-#M.finishstack()
-
-
-print datetime.now() - startTime
-"""
-
-"""
-#RA0 = 55, RA1 = 324, DEC0 = -1.5, DEC1 = 1.5
-
-RA0 = 55.
-RA1 = 324.
-DEC0 = -1.5
-DEC1 = 1.5
-
-M = StackMap(m,w,b,s,RA0,RA1,DEC0,DEC1)
-
-#M.squeezefullmap()
-
-#M.filterfullmap()
-
-#M.unsqueezefullmap()
-
-M.setsubmapL(16)
-
-#M.setsubmap(351.866,-2.0777) #El Gordo
-#M.setsubmap(323.8151, 1.4247)  #Abell 2355
-#M.setsubmap(354.4156, 0.269) #Abell 2631 - se ve pero no dentro del pixel
-                              #está mal centrado 
-
-#M.setsubmap(5.5553,-0.605) #WHL J002213.0-003634 (1) 
-
-#M.setsubmap(322.1036,1.5996) #WHL J212823.4+013536 
-
-
-#Hassel inside
-#M.setsubmap(5.5553,-0.605) #WHL J002213.0-003634 (1)
-
-#M.setsubmap(3.7276,-0.9502) #GMB11 J003.71362-00.94838 (2
-
-#M.setsubmap(28.1764,1.0059) #Abell 267 (4)
-
-
-#M.setsubmap(14.7855,-0.8326) #noname
-
-#M.setsubmap(51.7075,-0.7312) #GMBCG J051.70814-00.73104 (8)
-
-#M.setsubmap(6.5699,1.3367) #noname
-
-#M.setsubmap(328.6319,-0.8197) #WHL J215432.2-004905 (6)
-
-#M.setsubmap(35.3925,-0.2063) #GMB11 J035.40587-00.21967 (2)
-
-
-#M.zpadsubmap(512)
-
-#M.recenter()
-
-
-
-
-print datetime.now() - startTime
-"""
-
