@@ -478,7 +478,7 @@ class StackMap(object):
         if Type == "submapzpad2":
             img = self.submapzpad2
         if Type == "stackmap":
-            img == self.stackmap
+            img = self.stackmap
                
         ax.imshow(img, interpolation = "none", origin = "lower")
         
