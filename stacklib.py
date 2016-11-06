@@ -483,7 +483,7 @@ class StackMap(object):
         return plt.imshow(self.submapzpad2, origin = 'lower',
                           interpolation = 'none')
 
-    def plot(self, Type):
+    def plot(self, Type, circle = False):
         
         fig,ax = plt.subplots(1)
         
@@ -495,10 +495,14 @@ class StackMap(object):
             img = self.submapzpad
         if Type == "submapzpad2":
             img = self.submapzpad2
+        if Type == "stackmap":
+            img == self.stackmap
                
         ax.imshow(img, interpolation = "none", origin = "lower")
-        circ = Circle((img.shape[1]/2,img.shape[0]/2), 0.25, color = "white")   
-        ax.add_patch(circ) 
+        
+        if circle:
+            circ = Circle((img.shape[1]/2,img.shape[0]/2), 0.25, color = "white")   
+            ax.add_patch(circ) 
         
         return plt.show()
         
