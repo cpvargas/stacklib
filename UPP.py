@@ -26,15 +26,15 @@ def lp(x):
     '''
     return P_0/((c_500*x)*(1+(c_500*x)**alpha)**((beta-gamma)/alpha))
 
-'''
-x = np.linspace(0.03,1,100)
-y = lp(x)/P_0
+def plot_lp():
+    x = np.linspace(0.03,1,100)
+    y = lp(x)/P_0
 
-plt.plot(x,y)
-plt.xscale('log')
-plt.yscale('log')
-plt.show()
-'''
+    plt.plot(x,y)
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.show()
+
 
 def f_sz(freq):
     '''
@@ -44,12 +44,12 @@ def f_sz(freq):
     x = 10.**9*freq*h/(k_B*T_CMB)
     return x*(np.exp(x)+1)/(np.expm1(x))-4.
 
-'''
-x = np.linspace(1.,500.,1000)
-y = [f_sz(f) for f in x]  
-plt.plot(x,y)
-plt.show()
-'''
+def plot_f_sz():
+    x = np.linspace(1.,500.,1000)
+    y = [f_sz(f) for f in x]  
+    plt.plot(x,y)
+    plt.show()
+
 
 def f_sz_rel(freq,T_e):
     '''
@@ -72,16 +72,15 @@ def f_sz_rel(freq,T_e):
           -(242.0/5.0)*X**2+(143.0/30.0)*X**3)+(S**4)*(-44.0/5.0+(187.0/60.0)*X))
     return (Y_0+Y_1*theta_e+Y_2*theta_e**2)
  
-'''   
-x = np.linspace(100,300.,10000) 
-y = [f_sz(f) for f in x]  
-y_rel_5 = [f_sz_rel(f,5.) for f in x]
-y_rel_1 = [f_sz_rel(f,1.) for f in x]
-plt.plot(x,y_rel_5, color = 'Blue')
-plt.plot(x,y_rel_1, color = 'Red')
-plt.plot(x,y, color = 'Black')
-plt.show()
-'''
+def plot_f_sz_rel():
+    x = np.linspace(100,300.,10000) 
+    y = [f_sz(f) for f in x]  
+    y_rel_5 = [f_sz_rel(f,5.) for f in x]
+    y_rel_1 = [f_sz_rel(f,1.) for f in x]
+    plt.plot(x,y_rel_5, color = 'Blue')
+    plt.plot(x,y_rel_1, color = 'Red')
+    plt.plot(x,y, color = 'Black')
+    plt.show()
 
 def h(z):
     '''
@@ -112,7 +111,7 @@ def P(r,z,M_500, R_500):
     return P
     
   
-def plotP():  
+def plot_P():  
     x = np.linspace(0.01,1,1000)
     y = [P(r,1.,1.,1.)[0]/P(r,1.,1.,1.)[1] for r in x]
     plt.plot(x,y)
@@ -167,7 +166,7 @@ def P_ss(r,z,M_500):
     P = P_500*lp(x)
     return P
 
-def plotbothprofiles():
+def plot_bothP():
     x = np.linspace(0.01,1,1000)
     y = [P(r,0.1,1.e13,0.3232) for r in x]
     y_ss = [P_ss(r,0.1,1.e13) for r in x]
