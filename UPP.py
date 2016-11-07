@@ -111,16 +111,16 @@ def P(r,z,M_500, R_500):
     P = P_500*((M_500/(3.e14*h_70**(-1)))**(alpha_p+alphap_p(x)))*lp(x)
     return P
     
-    
-'''
-x = np.linspace(0.01,1,1000)
-y = [P(r,1.,1.,1.)[0]/P(r,1.,1.,1.)[1] for r in x]
-plt.plot(x,y)
-plt.xlim([0.01,1.])
-plt.xscale('log')
-plt.yscale('log')
-plt.show()
-'''
+  
+def plotP():  
+    x = np.linspace(0.01,1,1000)
+    y = [P(r,1.,1.,1.)[0]/P(r,1.,1.,1.)[1] for r in x]
+    plt.plot(x,y)
+    plt.xlim([0.01,1.])
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.show()
+
 
 def P_ss(r,z,M_500):
     '''
