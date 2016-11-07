@@ -167,17 +167,13 @@ def P_ss(r,z,M_500):
     P = P_500*lp(x)
     return P
 
-
-x = np.linspace(0.01,1,1000)
-
-y = [P(r,0.1,1.e13,0.3232) for r in x]
-y_ss = [P_ss(r,0.1,1.e13) for r in x]
-
-plt.plot(x,y, color = 'Blue')
-plt.plot(x,y_ss, color = 'Red')
-#plt.xlim([0.01,1.])
-plt.xscale('log')
-plt.yscale('log')
-plt.show()
-
-
+def plotbothprofiles():
+    x = np.linspace(0.01,1,1000)
+    y = [P(r,0.1,1.e13,0.3232) for r in x]
+    y_ss = [P_ss(r,0.1,1.e13) for r in x]
+    plt.plot(x,y, color = 'Blue')
+    plt.plot(x,y_ss, color = 'Red')
+    #plt.xlim([0.01,1.])
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.show()
