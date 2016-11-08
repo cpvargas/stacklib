@@ -82,7 +82,7 @@ def plot_f_sz_rel():
     plt.plot(x,y, color = 'Black')
     plt.show()
 
-def h(z):
+def h_(z):
     '''
     Hubble scaled redshift function
     h(z) = H(z)/H_0 = (Omega_m*(1+z)^3+Omega_Lambda)^1/2
@@ -106,7 +106,7 @@ def P(r,z,M_500, R_500):
         #return (0.10-(alpha_p+0.10)*(  ((x/0.5)**3)/(1.+ ((x/0.5)**3) )  ))
         return 0
     
-    P_500 = (1.65e-3)*(h(z)**(8./3.))*((M_500/(3.e14*h_70**(-1)))**(2./3.))*h_70**2.
+    P_500 = (1.65e-3)*(h_(z)**(8./3.))*((M_500/(3.e14*h_70**(-1)))**(2./3.))*h_70**2.
     P = P_500*((M_500/(3.e14*h_70**(-1)))**(alpha_p+alphap_p(x)))*lp(x)
     return P
     
