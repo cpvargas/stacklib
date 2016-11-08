@@ -1,22 +1,28 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import matplotlib.pyplot as plt
+from astropy.cosmology import FlatLambdaCDM
 
-h = 6.626e-34 # J*s
-k_B = 1.381e-23 #J/K
+#Physical Constants
+h = 6.626e-34 #Planck Constant, J*s
+k_B = 1.381e-23 #Boltzmann Constant, J/K
 
-T_CMB = 2.725 #K
-sigma_T = 6.6524e-25 #cm^2
-m_e = 0.511e3 #keV/c^2
+T_CMB = 2.725 #CMB Temperatura, K
+sigma_T = 6.6524e-25 #Thomson Cross Section, cm^2
+m_e = 0.511e3 #electron mass, keV/c^2
 
-H_0 = 68. #km/s/Mpc
-h_70 = H_0/70.
+H_0 = 68. #Hubble Constant, km/s/Mpc
+h_70 = H_0/70. 
 
-Omega_m = 0.31
-Omega_Lambda = 0.69
+Omega_m = 0.31 #Matter density parameter
+Omega_Lambda = 0.69 #Dark energy density parameter
 
+#Universal Pressure Profile constants
 [P_0,c_500,gamma,alpha,beta] = [8.403*h_70**(-3./2.), 1.177, 
                                 0.3081, 1.0510, 5.4905]
+
+#setting the cosmology
+cosmo = FlatLambdaCDM(H0 = H_0, Om0 = Omega_m)
 
 def lp(x):
     '''
