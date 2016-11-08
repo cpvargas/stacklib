@@ -184,11 +184,10 @@ def plot_bothP():
     plt.yscale('log')
     plt.show()
     
-def DeltaT(theta,z,M_500,R_500):
+def y(theta,z,M_500,R_500):
     '''
     
-    Sunayev Zel'dovich decrement in μK at a theta angle from the center 
-    of the cluster. Decrement at the center is at theta = 0.
+    Sunayev Zel'dovich y-parameter at a theta angle.
     
     theta in radians.
     
@@ -208,13 +207,32 @@ def DeltaT(theta,z,M_500,R_500):
         
     #the differential is in Mpc, we need to pass it to cm
     #1 Mpc = 3.0857 × 10^24 cm
-    
-    #units yield a temperature in Kelvins, we multiply by 1.e6
-    #to get it in μK
-    
+    #the parameter has no units
+
     #we integrate from 0.01 (the model has no meaning for smaller radius)
     #to l_max = 5*R_500
     l_max = 5*R_500
     Integral = integrate.quad(func,0.01,l_max)[0]*3.0857e24
-    DeltaT = T_CMB*f_sz(148)*(sigma_T/m_e)*Integral*1.e6
+    y = (sigma_T/m_e)*Integral*1.e6
+    return y
+    
+def DeltaT(theta,z,M_500,R_500,freq):
+    '''
+    Sunayev Zel'dovich temperature decrement in μK at a theta angle
+    
+    theta in radians.
+    
+    Needs the cluster properties:
+    z
+    M_500 in M_sun
+    R_500 in Mpc
+    '''
+    #since DeltaT(theta) = T_CMB*f_sz(freq)*y(theta)
+    #we use the y function and just multiply
+
+    #units yield a temperature in Kelvins, we multiply by 1.e6
+    #to get it in μK
+    
+    DeltaT = T_CMB*f_sz(freq)*y(theta,z,M_500,R_500)
+    
     return DeltaT
