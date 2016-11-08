@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy import integrate
 from astropy.cosmology import FlatLambdaCDM
 
 #Physical Constants
@@ -182,3 +183,38 @@ def plot_bothP():
     plt.xscale('log')
     plt.yscale('log')
     plt.show()
+    
+def DeltaT(theta,z,M_500,R_500):
+    '''
+    
+    Sunayev Zel'dovich decrement in μK at a theta angle from the center 
+    of the cluster. Decrement at the center is at theta = 0.
+    
+    theta in radians.
+    
+    Needs the cluster properties:
+    z
+    M_500 in M_sun
+    R_500 in Mpc
+    '''
+    def D_A(z):
+        '''
+        Angular distance at redshift z
+        '''
+        return cosmo.angular_diameter_distance(z).value
+    
+    def func(s):
+        return P(np.sqrt(s**2+(theta*D_A(z))),z,M_500,R_500)
+        
+    #the differential is in Mpc, we need to pass it to cm
+    #1 Mpc = 3.0857 × 10^24 cm
+    
+    #units yield a temperature in Kelvins, we multiply by 1.e6
+    #to get it in μK
+    
+    #we integrate from 0.01 (the model has no meaning for smaller radius)
+    #to l_max = 5*R_500
+    l_max = 5*R_500
+    Integral = integrate.quad(func,0.01,l_max)[0]*3.0857e24
+    DeltaT = T_CMB*f_sz(148)*(sigma_T/m_e)*Integral*1.e6
+    return DeltaT
