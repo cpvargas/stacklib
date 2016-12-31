@@ -7,6 +7,32 @@ from scipy import interpolate
 from scipy import ndimage
 from scipy.misc import imresize
 from matplotlib.patches import Circle
+from astropy.cosmology import FlatLambdaCDM
+from scipy import integrate
+
+#Physical Constants
+h = 6.626e-34 #Planck Constant, J*s
+k_B = 1.381e-23 #Boltzmann Constant, J/K
+
+T_CMB = 2.725 #CMB Temperatura, K
+sigma_T = 6.6524e-25 #Thomson Cross Section, cm^2
+m_e = 0.511e3 #electron mass, keV/c^2
+
+H_0 = 68. #Hubble Constant, km/s/Mpc
+h_70 = H_0/70. 
+
+Omega_m = 0.31 #Matter density parameter
+Omega_Lambda = 0.69 #Dark energy density parameter
+
+#Universal Pressure Profile constants
+[P_0,c_500,gamma,alpha,beta] = [8.403*h_70**(-3./2.), 1.177, 
+                                0.3081, 1.0510, 5.4905]
+
+#setting the cosmology
+cosmo = FlatLambdaCDM(H0 = H_0, Om0 = Omega_m)
+
+#conversion from M200 to M500
+M200toM500 = 0.765
 
 def beam(beamfile, pixsize, radius):
     '''
@@ -77,14 +103,80 @@ def beammap(beamfile, mapheader):
     Beammap[cy-radius:cy+radius+1,cx-radius:cx+radius+1] = Beam
     return Beammap
 
-def matchedfilter(inmap,inmap_beam):
+def Tau_minimap(R_500, z, pixsize):
+    '''
+    Minimap of the unit normalized model up to 5*theta_500
+    '''
+    c_500 = 1.177
+    alpha = 1.0510
+    beta = 5.4905
+    gamma = 0.3081
+    r_s = R_500/c_500
+    
+    def D_A(z):
+        return cosmo.angular_diameter_distance(z).value 
+    
+    def P_3D(r):
+        x = r/r_s
+        return 1./((x**gamma)*(1+x**alpha)**((beta-gamma)/alpha))
+    
+    r = np.ceil((5*R_500/D_A(z))*(360/(2*np.pi))/pixsize)
+    
+    DA = D_A(z)
+    l_max = 5*R_500
+    
+    P_0 = integrate.quad(P_3D,0.03,l_max)[0]
+
+    projection = lambda s,theta : P_3D(np.sqrt(s**2+theta**2*DA**2))
+
+    def P_2D(x,y):
+        d = np.sqrt(x**2+y**2)
+        return integrate.quad(projection,0.03,l_max,args = (d,))[0]/P_0
+    
+    f = np.vectorize(P_2D)
+
+    xaxis = np.linspace(-r, r, 2*r+1)*pixsize*(2*np.pi)/360.
+    yaxis = np.linspace(-r, r, 2*r+1)*pixsize*(2*np.pi)/360.
+    result = f(xaxis[:,None], yaxis[None,:])    
+    
+    return result
+
+def Tau_map(R_500,z,mapheader):
+    pixsize = abs(mapheader['CDELT1'])
+    
+    minitau = Tau_minimap(R_500,z,pixsize)
+    radius = minitau.shape[0]/2
+    
+    shape_x = mapheader['NAXIS1']
+    shape_y = mapheader['NAXIS2']
+
+    taumap = np.zeros((shape_y,shape_x))
+    
+    cx = int(shape_x/2)
+    cy = int(shape_y/2)
+
+    taumap[cy-radius:cy+radius+1,cx-radius:cx+radius+1] = minitau
+    return taumap
+    
+def normalized_convolution(s1,s2):
+    '''
+    Normalized convolution of two signals
+    '''
+    conv = np.real(np.fft.fftshift(np.fft.ifft2(np.fft.fft2(s1)*np.fft.fft2(s2))))
+    ymid = conv.shape[0]/2
+    xmid = conv.shape[1]/2
+    norm = conv[ymid,xmid]
+    conv /= norm
+    return conv
+    
+def matchedfilter_one(inmap,signal):
     mfft = np.abs(np.fft.fft2(inmap))
     mfft2_inv = 1./mfft**2
         
     median = np.median(np.copy(mfft2_inv))
         
-    mfft2_inv[mfft2_inv>median/10] = median
-    mfft2_inv[mfft2_inv<median*10] = median
+    mfft2_inv[mfft2_inv>median/3] = median
+    mfft2_inv[mfft2_inv<median*3] = median
             
     mfft2_inv = ndimage.gaussian_filter(mfft2_inv, sigma=5)   
     
@@ -114,20 +206,21 @@ def matchedfilter(inmap,inmap_beam):
     #applying the taper
     mfft2_inv = mfft2_inv*Sin5Map
     
-    beam_fft = np.fft.fft2(inmap_beam)
-    beam_fft_c = np.conjugate(beam_fft)
+    signal_fft = np.fft.fft2(signal)
+    signal_fft_c = np.conjugate(signal_fft)
     
-    mfilt = (beam_fft_c*mfft2_inv)
-    mfilt_norm = np.sum(np.abs(beam_fft)**2*mfft2_inv)/mfilt.size
+    mfilt = (signal_fft_c*mfft2_inv)
+    mfilt_norm = np.sum(np.abs(signal_fft)**2*mfft2_inv)/mfilt.size
     
     mfilt /= mfilt_norm
     return mfilt  
+
 
 def filtermap(data,filt):
     map_fft = np.fft.fft2(data)
     filtmap_fft = map_fft * filt
     filtmap = np.fft.ifft2(filtmap_fft)    
-    return np.fft.fftshift(np.real(filtmap))
+    return np.real(np.fft.fftshift(filtmap))
 
 
 def pastemap(inmap, minimap, location):
@@ -204,7 +297,98 @@ def zeroPadMap(inmap, newLength):
     zeroPaddedMap = np.real(np.fft.ifft2(zeroPaddedMap_fft))/factor
     
     return zeroPaddedMap
+
+def f_sz(freq):
+    '''
+    frequency component factor of sunyaev zel'dovich effect
+    freq in GHz
+    '''
+    x = 10.**9*freq*h/(k_B*T_CMB)
+    return x*(np.exp(x)+1)/(np.expm1(x))-4.
+
+def f_sz_rel(freq,T_e):
+    '''
+    relativistic frequency component factor of Sunyaev Zel'dovich effect
+    freq en GHz
+    
+    needs and electron temperature T_e in keV/k_B (a 5 value means K_B*T_e=5keV)
+    
+    Typical values ranges 1 to 15
+    '''
+    theta_e = float(T_e)/0.511e3 #K_B*T_e in keV, since m_e*c^2 = 0.511 MeV
+    x = 10.**9*float(freq)*h/(k_B*T_CMB) 
+    X = x/np.tanh(x/2)
+    S = x/np.sinh(x/2)
+    Y_0 = -4.0+X
+    Y_1 = -10.0+(47.0/2.0)*X-(42.0/5.0)*X**2+(7.0/10.0)*X**3+(S**2)*(-21.0/5.0
+          +(7.0/5.0)*X)
+    Y_2 = (-15.0/2.0+(1023.0/8.0)*X-(868.0/5.0)*X**2+(329.0/5.0)*X**3
+          -(44.0/5.0)*X**4+(11.0/30.0)*X**5+(S**2)*(-434.0/5.0+(658.0/5.0)*X
+          -(242.0/5.0)*X**2+(143.0/30.0)*X**3)+(S**4)*(-44.0/5.0+(187.0/60.0)*X))
+    return (Y_0+Y_1*theta_e+Y_2*theta_e**2)
+
+def R_500_from_M_500(M_500,z):
+    M_500_kg = 1.989e30*M_500
+    
+    #first we pass all to mks
+    G = 6.67408e-11 # m^3 kg^-1 s^-2
+    
+    #for the Hubble constant we divide km/Mpc
+    #1 pc = 3.0857 × 10^16 m
+    H_0_s = H_0*(1.e3/(1.e6*3.0857e16)) #s^-1
+    
+    def H(z):
+        return H_0_s*np.sqrt(Omega_m*(1+z)**3+Omega_Lambda)
+    
+    def rho_c(z):
+        '''
+        critical density in kg m^-3
+        '''
+        return (3*(H(z))**2)/(8*np.pi*G)
         
+    R_500 = (3*M_500_kg/(4*np.pi*500*rho_c(z)))**(1./3.) #in m
+    return R_500/3.0857e22 #in Mpc
+
+def T_e_from_M_500(M_500, z):
+    '''
+    Temperature of a singular isothermal sphere with mass M_500 at redshift z
+    
+    M_500 in M_sun
+    '''
+    R_500 = R_500_from_M_500(M_500,z) #in Mpc
+    m_p = 0.938 #Gev / c^2 #proton mass
+    mu = 0.59 #mean molecular weight per free electron. From Nagai et al 2007
+    G = 4.302e-3 #pc M_sun^-1 (km/s)^2 #gravitational constant in useful units
+    c = 299792 #km/s
+    
+    return mu*m_p*G*M_500/(2*R_500*c**2) #in keV      
+  
+def M_200_from_N_gals(Ngals):
+    '''
+    From Hao, in solar masses
+    '''
+    return 8.8e13*((0.66*Ngals+9.567)/20.)**1.28
+    
+def Y_sz_theoretical(M_500,z):
+    alpha = 1.78
+    I5 = 1.1037
+    B_x = I5*2.925e-5
+    
+    EZ = np.sqrt(Omega_m*(1+z)**3+Omega_Lambda)
+    
+    DAZ = cosmo.angular_diameter_distance(z).value
+    
+    return B_x*((M_500/(3.e14*h_70))**alpha)#*(EZ**(3./2.)*DAZ**2)
+    
+    
+def DeltaT_0_theoretical(M_500,z):
+    tau = Tau_minimap(R_500_from_M_500(M_500,z),z,0.00825)
+    integ = np.sum(tau)*(0.00825*2*np.pi/360.)**2
+    Te = T_e_from_M_500(M_500, z)
+    Ysz = Y_sz_theoretical(M_500,z)
+    fsz = f_sz_rel(148,Te)
+    return (Ysz*fsz*T_CMB/integ)*1.e6
+    
 ###############################################################################
 
 class StackMap(object):
@@ -261,9 +445,10 @@ class StackMap(object):
         self.weightsmap = weightsmap[y0:y1+1,x0:x1+1]
         self.sourcesmap = sourcesmap[y0:y1+1,x0:x1+1]
         
+        self.datamap *= self.sourcesmap
         
         #updating in the header the map dimensions and reference pixel
-
+        
         self.maphdr = maphdr.copy()
         self.maphdr['NAXIS1'] = self.datamap.shape[1]
         self.maphdr['NAXIS2'] = self.datamap.shape[0]
@@ -278,17 +463,61 @@ class StackMap(object):
         #radial profile B(r). unit normalized means that B(0) = 1.
         #the profile contains values from 0deg to near 1deg.
         
-        self.beammap = beammap(BeamFile, self.maphdr)
-                
+        #self.beammap = beammap(BeamFile, self.maphdr)
+        
+        self.beamfile = BeamFile        
+                                
+    ###########################################################################
+    '''
+    def setfullmap(self):
         #fullmap initialization
         
         #this is the core map. first we create it as the original map with 
         #sources masked multiplying datamap with sourcesmap
-        
         self.fullmap = np.copy(self.datamap)  #* self.sourcesmap
+    '''
+    def setfullmap(self):
+        self.fullmapheader = self.maphdr.copy()
+        self.fullmapheader["NAXIS2"] = 256
+        self.fullmapheader["NAXIS1"] = 8192
+        #CRPIX is changed later
+    
+    def getbeammap(self):
+        self.beammap = beammap(self.beamfile, self.fullmapheader)
+    
+    def gettaumap(self, M_500, z):
+        self.M_500 = M_500
+        self.z = z
+        R_500 = R_500_from_M_500(M_500,z)
+        self.R_500 = R_500
+        self.taumap = Tau_map(R_500,z,self.fullmapheader)
+            
+    def getnormconv(self):
+        self.nc = normalized_convolution(self.taumap,self.beammap)
         
+    def fakeclus(self,RA,DEC,R_500,z,radius):
+        '''
+        Adds a fake cluster in fullmap
+        radius in pixels
+        '''
+        taumap = Tau_map(R_500,z,self.fullmapheader)
+        beammap = self.beammap
+        conv = np.real(np.fft.fftshift(np.fft.ifft2(np.fft.fft2(taumap)*np.fft.fft2(beammap))))
+        ymid = conv.shape[0]/2
+        xmid = conv.shape[1]/2
+        norm = conv[ymid,xmid]
+        conv /= norm
         
-    ###########################################################################
+        conv *= -200
+        
+        v = np.array([[RA,DEC]])
+        rp = self.w.wcs_world2pix(v,0)
+        p = np.array(np.round(rp,0), dtype = np.int)
+        px = p[0][0]
+        py = p[0][1]
+        r = radius
+        self.datamap[py-r:py+r+1,px-r:px+r+1] += conv[ymid-r:ymid+r+1,xmid-r:xmid+r+1]     
+        
     '''
     About pixels.
     
@@ -306,35 +535,19 @@ class StackMap(object):
     Here we will make use of the second definition in some parts, for the
     rest we use the first definition
     '''
-
-    def squeezefullmap(self):
-        '''
-        Multiplies the fullmap pixel-wise, by the number of observations in 
-        any single pixel: sqrt(N_obs(x)/N_obs,max)
-        '''
-        self.N_max = np.amax(self.weightsmap)
-        self.fullmap *= np.sqrt(self.weightsmap/self.N_max)
-
-        
-    #filter methods############################################################
-    def filterfullmap(self):
-        self.filt = matchedfilter(self.fullmap,self.beammap)
-        self.fullmap = filtermap(self.fullmap,self.filt)
-        
-    ###########################################################################
-    def unsqueezefullmap(self):
-        '''
-        Reverse the pixel-wise multiplication
-        '''
-        self.fullmap *= np.sqrt(self.N_max/self.weightsmap)    
-
-
+    
     def getpix(self,RA,DEC):
         coord = np.array([[RA,DEC]], dtype = np.float_)
         px, py = np.array(np.round(self.w.wcs_world2pix(coord, 0),0),
                           dtype=np.int_)[0]
-        return px,py
-        
+        return px,py    
+    
+    def getpix_fullmap(self,RA,DEC):
+        coord = np.array([[RA,DEC]], dtype = np.float_)
+        px, py = np.array(np.round(self.fullmapw.wcs_world2pix(coord, 0),0),
+                          dtype=np.int_)[0]
+        return px,py  
+              
     #submaps methods###########################################################
     def setsubmapL(self, L):
         '''
@@ -356,17 +569,83 @@ class StackMap(object):
         if the quadrants are 2|1
                              3|4
         the center is at the inferior left corner of 1
+        (using origin = "lower")
         
         L has to be setted before calling this method
         '''
+        self.RA,self.DEC = RA,DEC
         
         cx, cy = self.getpix(RA,DEC)
         
         L = self.submapL
         
+        Lx = self.maphdr["NAXIS1"]
+        Ly = self.maphdr["NAXIS2"]
+        
+        #3 4
+        #1 2
+        
+        #1
+        if cx<=Lx/2 and cy<=Ly/2:
+            x0 = 0
+            x1 = 8192
+            y0 = 0
+            y1 = 256    
+            
+        #2
+        if cx>Lx/2 and cy<=Ly/2:
+            x0 = Lx-8192
+            x1 = Lx
+            y0 = 0
+            y1 = 256
+            
+        #3
+        if cx<=Lx/2 and cy>Ly/2:
+            x0 = 0
+            x1 = 8192
+            y0 = Ly-256
+            y1 = Ly
+            
+        #4
+        if cx>Lx/2 and cy>Ly/2:
+            x0 = Lx-8192
+            x1 = Lx
+            y0 = Ly-256
+            y1 = Ly
+        
+        self.fullmap = np.copy(self.datamap)[y0:y1,x0:x1]
+        self.fullmapweights = self.weightsmap[y0:y1,x0:x1]
+        self.fullmapheader["CRPIX1"] -= x0
+        self.fullmapheader["CRPIX2"] -= y0
+        
+        self.fullmapw= wcs.WCS(self.fullmapheader)
+        
+        cx,cy = self.getpix_fullmap(RA,DEC)
+        
         self.submap = self.fullmap[cy-L/2:cy+L/2,cx-L/2:cx+L/2]
         self.submapw = self.weightsmap[cy-L/2:cy+L/2,cx-L/2:cx+L/2]
+    
+    def getsubmap(self):
         
+        L = self.submapL
+        
+        cx,cy = self.getpix_fullmap(self.RA,self.DEC)
+        
+        self.submap = self.fullmap[cy-L/2:cy+L/2,cx-L/2:cx+L/2]
+        self.submapw = self.fullmapweights[cy-L/2:cy+L/2,cx-L/2:cx+L/2]
+    
+    def getsubmapSZ(self):
+        I = (np.sum(self.taumap))*(0.00825*2*np.pi/360.)**2
+        Te = T_e_from_M_500(self.M_500, self.z)
+        fsz = f_sz_rel(148,Te)
+        EZ = np.sqrt(Omega_m*(1+self.z)**3+Omega_Lambda)
+        DAZ = cosmo.angular_diameter_distance(self.z).value
+        #needs a factor of 1.e-6 because map temperature is in
+        #microKelvins and T_cmb is in Kelvins
+        T_to_SZ = I*(DAZ**2)*(EZ**(-2./3.))/(fsz*T_CMB)*1.e-6
+        self.submap *= T_to_SZ
+        self.sigma = np.std(self.fullmap)*np.abs(T_to_SZ)
+    
     def zpadsubmap(self, newLength):
         '''
         Decreases submap pixels size via zero padding
@@ -423,6 +702,56 @@ class StackMap(object):
         return self.submapzpad2[mid,mid]  
     ###########################################################################
     
+    def squeezefullmap(self):
+        '''
+        Multiplies the fullmap pixel-wise, by the number of observations in 
+        any single pixel: sqrt(N_obs(x)/N_obs,max)
+        '''
+        self.N_max = np.amax(self.fullmapweights)
+        self.fullmap *= np.sqrt(self.fullmapweights/self.N_max)
+
+
+    #filter methods############################################################
+    def filterfullmap_clus(self,R_500,z):
+        self.normconv(R_500,z)
+        self.filt = matchedfilter_one(self.fullmap,self.nc)
+        self.fullmap = filtermap(self.fullmap,self.filt)
+        
+        #apodizing 10 border pixels
+        Lx = self.fullmap.shape[1]
+        Ly = self.fullmap.shape[0]
+        self.fullmap = self.fullmap[10:Ly-10,10:Lx-10]
+        self.fullmapweights = self.fullmapweights[10:Ly-10,10:Lx-10]
+        self.fullmapheader["CRPIX1"] -= 10
+        self.fullmapheader["CRPIX2"] -= 10
+        self.fullmapw= wcs.WCS(self.fullmapheader)
+        
+    
+    def filterfullmap(self):
+        self.filt = matchedfilter_one(self.fullmap,self.nc)
+        self.fullmap = filtermap(self.fullmap,self.filt)
+        
+        #apodizing 10 border pixels
+        Lx = self.fullmap.shape[1]
+        Ly = self.fullmap.shape[0]
+        self.fullmap = self.fullmap[10:Ly-10,10:Lx-10]
+        self.fullmapweights = self.fullmapweights[10:Ly-10,10:Lx-10]
+        self.fullmapheader["CRPIX1"] -= 10
+        self.fullmapheader["CRPIX2"] -= 10
+        self.fullmapw= wcs.WCS(self.fullmapheader)        
+        
+        
+    ###########################################################################
+    def unsqueezefullmap(self):
+        '''
+        Reverse the pixel-wise multiplication
+        '''
+        self.fullmap *= np.sqrt(self.N_max/self.fullmapweights)    
+
+
+
+    
+    
     #stacking methods##########################################################
     def setstackmap(self):
         '''
@@ -434,7 +763,9 @@ class StackMap(object):
         L = self.submapL
 
         self.stackmap = np.zeros((L,L))
-        self.stackmapw = np.zeros((L,L))                
+        #self.stackmapw = np.zeros((L,L))
+        self.nstack = 0
+        self.sigmas = []
     
     def stacksubmap(self):
         '''
@@ -442,8 +773,12 @@ class StackMap(object):
         
         A submap has to be setted before calling this method
         '''
-        self.stackmap += self.submap*self.submapw
-        self.stackmapw += self.submapw
+        self.stackmap += self.submap
+        self.nstack += 1
+        self.sigmas.append(self.sigma)
+        L = self.stackmap.shape[0]
+        self.SN = np.sqrt(self.nstack)*self.stackmap[L/2,L/2]/(self.nstack*np.mean(self.sigmas))
+        #self.stackmapw += self.submapw
         
     def finishstack(self):
         '''
@@ -452,7 +787,8 @@ class StackMap(object):
         
         Needs at least one call on stacksubmap
         '''
-        self.stackmap = self.stackmap/self.stackmapw
+        self.stackmap = self.stackmap/self.nstack
+        self.sigmamean = np.mean(self.sigmas)/np.sqrt(self.nstack)
 
     ###########################################################################
     
@@ -507,3 +843,83 @@ class StackMap(object):
         
         return plt.savefig(filename)
     ###########################################################################
+    
+from datetime import datetime
+
+#import os
+#path = os.environ["HOME"] + '/FILES/' 
+
+#path = u'C:\\FILES\\'
+
+path = u'/Users/cristianpatriciovargascastro/Dropbox/FILES/'
+
+m = path + 'ACT_148_equ_season_3_1way_v3_summed.fits'
+w = path + 'ACT_148_equ_season_3_1way_calgc_strictcuts2_weights.fits'
+b = path + 'profile_AR1_2009_pixwin_130224.txt'
+s = path + 'Equa_mask_15mJy.fits'
+
+RA0 = 57.5
+RA1 = 308.5
+DEC0 = -1.5
+DEC1 = 1.5
+
+M = StackMap(m,w,b,s,RA0,RA1,DEC0,DEC1)
+M.setsubmapL(32)
+M.setstackmap()
+
+t = fits.open(path + 'radio_quiet.fit')
+
+tbdata = t[1].data
+
+startTime = datetime.now() 
+
+def stack(ClustersRange,Binname):
+    Ms = []
+    Ns = []
+
+    for i in ClustersRange:
+        Ngals = tbdata['GM_SCALED_NGALS'][i]
+        Ns.append(Ngals)
+        
+        z = tbdata['PHOTOZ'][i]
+        RA = tbdata['RA'][i]
+        DEC = tbdata['DEC'][i]
+        
+        M.setfullmap()
+        
+        M.getbeammap()
+        
+        Mass = M200toM500*M_200_from_N_gals(Ngals)
+        Ms.append(Mass)
+        
+        M.gettaumap(Mass,z)
+        M.getnormconv()
+    
+        M.setsubmap(RA,DEC)
+        
+        M.squeezefullmap()
+    
+        M.filterfullmap() 
+        
+        M.unsqueezefullmap() 
+        
+        hdu = fits.PrimaryHDU(M.fullmap, header = M.fullmapheader)
+        hdu.writeto('Fullmap_object2.fits')
+        
+        M.getsubmap()
+        M.getsubmapSZ()
+        
+        M.stacksubmap()
+        
+    M.finishstack()
+    
+    hdu = fits.PrimaryHDU(M.stackmap)
+    hdu.writeto('{}.fits'.format(Binname))
+    print '{}'.format(Binname)
+    print 'Y_SZ = ' + str(M.stackmap[16,16])
+    print 'M.SN = ' + str(M.SN)
+    print 'Ngals =' + str(Ns[0]) + '-' + str(Ns[len(Ns)-1])
+    print '<M> = ' + str(np.mean(Ms))
+    print datetime.now() - startTime
+    
+
