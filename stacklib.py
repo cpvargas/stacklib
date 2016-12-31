@@ -418,7 +418,7 @@ class StackMap(object):
         #First we find the pixel corresponding to the corners
         verticesworld = np.array([[RA0,DEC0],[RA1,DEC1]])
         rawpix = w.wcs_world2pix(verticesworld, 0) #0 for the representation
- 
+        
         #rawpix is the pixel as a float, we want the element on the array
         #for this pixels, to get this we have to round the floats, this is
         #because each pixel is a rectangular area with width and eight
@@ -843,7 +843,9 @@ class StackMap(object):
         
         return plt.savefig(filename)
     ###########################################################################
-    
+
+#Example of bin stacking
+
 from datetime import datetime
 
 #import os
@@ -921,5 +923,3 @@ def stack(ClustersRange,Binname):
     print 'Ngals =' + str(Ns[0]) + '-' + str(Ns[len(Ns)-1])
     print '<M> = ' + str(np.mean(Ms))
     print datetime.now() - startTime
-    
-
