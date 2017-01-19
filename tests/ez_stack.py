@@ -30,6 +30,8 @@ DEC1 = 1.5
 
 M = sl.StackMap(m,w,b,s,RA0,RA1,DEC0,DEC1)
 
+M.setfullmap(boostFT = 'False')
+
 M.fullmap = np.abs(M.fullmap*0)
 
 cat = sl.fakecatalog(100)

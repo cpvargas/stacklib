@@ -491,10 +491,10 @@ class StackMap(object):
         #as a rectangle with width and height of an exponent of 2
                 
         self.fullmapheader = self.maphdr.copy()
-        if boostFT:
+        if boostFT == True:
             self.fullmapheader["NAXIS2"] = 256
             self.fullmapheader["NAXIS1"] = 8192
-        else:
+        if boostFT == False:
             self.fullmap = np.copy(self.datamap)
         #CRPIX is changed later
     
