@@ -9,6 +9,7 @@ from scipy.misc import imresize
 from matplotlib.patches import Circle
 from astropy.cosmology import FlatLambdaCDM
 from scipy import integrate
+from types import *
 
 #Physical Constants
 h = 6.626e-34 #Planck Constant, J*s
@@ -240,17 +241,26 @@ def pastemap(inmap, minimap, location):
     inmap[cy-r:cy+r+1,cx-r:cx+r+1] += minimap
     return inmap
     
-def fakecatalog(num):
+def fakecatalog(num, RA0, RA1, DEC0, DEC1, A):
     '''
-    Generates a fake catalog of sources at [RA,DEC]
-    NEED TO FIX THE RANGES TO BE AUTOMATIC
+    Generates a fake catalog of num sources at random [RA,DEC]
+    confined on a region of RA1, RA0, DEC1, DEC0
+    
+    A degrees are cropped to leave some space for submaps
     '''
+    assert type(num) is IntType
+    A = np.float(A)
+    RA0 = np.float(RA0)
+    RA1 = np.float(RA1)
+    DEC0 = np.float(DEC0)
+    DEC1 = np.float(DEC1)
+    
     fakecat = []
     for i in range(num):
-        RA = np.random.uniform(324.+1.,360.+55.-1.)
+        RA = np.random.uniform(RA1+A,360.+RA0-A)
         if RA>=360:
             RA -= 360
-        DEC = np.random.uniform(-1.,1.)
+        DEC = np.random.uniform(DEC0+A,DEC1-A)
         fakecat.append([RA,DEC])
     return fakecat
     
@@ -418,7 +428,7 @@ class StackMap(object):
         #First we find the pixel corresponding to the corners
         verticesworld = np.array([[RA0,DEC0],[RA1,DEC1]])
         rawpix = w.wcs_world2pix(verticesworld, 0) #0 for the representation
-        
+ 
         #rawpix is the pixel as a float, we want the element on the array
         #for this pixels, to get this we have to round the floats, this is
         #because each pixel is a rectangular area with width and eight
@@ -843,83 +853,3 @@ class StackMap(object):
         
         return plt.savefig(filename)
     ###########################################################################
-
-#Example of bin stacking
-
-from datetime import datetime
-
-#import os
-#path = os.environ["HOME"] + '/FILES/' 
-
-#path = u'C:\\FILES\\'
-
-path = u'/Users/cristianpatriciovargascastro/Dropbox/FILES/'
-
-m = path + 'ACT_148_equ_season_3_1way_v3_summed.fits'
-w = path + 'ACT_148_equ_season_3_1way_calgc_strictcuts2_weights.fits'
-b = path + 'profile_AR1_2009_pixwin_130224.txt'
-s = path + 'Equa_mask_15mJy.fits'
-
-RA0 = 57.5
-RA1 = 308.5
-DEC0 = -1.5
-DEC1 = 1.5
-
-M = StackMap(m,w,b,s,RA0,RA1,DEC0,DEC1)
-M.setsubmapL(32)
-M.setstackmap()
-
-t = fits.open(path + 'radio_quiet.fit')
-
-tbdata = t[1].data
-
-startTime = datetime.now() 
-
-def stack(ClustersRange,Binname):
-    Ms = []
-    Ns = []
-
-    for i in ClustersRange:
-        Ngals = tbdata['GM_SCALED_NGALS'][i]
-        Ns.append(Ngals)
-        
-        z = tbdata['PHOTOZ'][i]
-        RA = tbdata['RA'][i]
-        DEC = tbdata['DEC'][i]
-        
-        M.setfullmap()
-        
-        M.getbeammap()
-        
-        Mass = M200toM500*M_200_from_N_gals(Ngals)
-        Ms.append(Mass)
-        
-        M.gettaumap(Mass,z)
-        M.getnormconv()
-    
-        M.setsubmap(RA,DEC)
-        
-        M.squeezefullmap()
-    
-        M.filterfullmap() 
-        
-        M.unsqueezefullmap() 
-        
-        hdu = fits.PrimaryHDU(M.fullmap, header = M.fullmapheader)
-        hdu.writeto('Fullmap_object2.fits')
-        
-        M.getsubmap()
-        M.getsubmapSZ()
-        
-        M.stacksubmap()
-        
-    M.finishstack()
-    
-    hdu = fits.PrimaryHDU(M.stackmap)
-    hdu.writeto('{}.fits'.format(Binname))
-    print '{}'.format(Binname)
-    print 'Y_SZ = ' + str(M.stackmap[16,16])
-    print 'M.SN = ' + str(M.SN)
-    print 'Ngals =' + str(Ns[0]) + '-' + str(Ns[len(Ns)-1])
-    print '<M> = ' + str(np.mean(Ms))
-    print datetime.now() - startTime
