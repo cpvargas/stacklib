@@ -576,7 +576,7 @@ class StackMap(object):
         else:
             print("L must be even")
     
-    def setsubmap(self,RA,DEC):
+    def setsubmap(self,RA,DEC, boostFT = True):
         '''
         sets the current submap centered at RA,DEC
         
@@ -601,42 +601,47 @@ class StackMap(object):
         #3 4
         #1 2
         
-        #1
-        if cx<=Lx/2 and cy<=Ly/2:
-            x0 = 0
-            x1 = 8192
-            y0 = 0
-            y1 = 256    
+        assert type(boostFT)==bool
+        if boostFT==True:
+            #1
+            if cx<=Lx/2 and cy<=Ly/2:
+                x0 = 0
+                x1 = 8192
+                y0 = 0
+                y1 = 256    
+                
+            #2
+            if cx>Lx/2 and cy<=Ly/2:
+                x0 = Lx-8192
+                x1 = Lx
+                y0 = 0
+                y1 = 256
+                
+            #3
+            if cx<=Lx/2 and cy>Ly/2:
+                x0 = 0
+                x1 = 8192
+                y0 = Ly-256
+                y1 = Ly
+                
+            #4
+            if cx>Lx/2 and cy>Ly/2:
+                x0 = Lx-8192
+                x1 = Lx
+                y0 = Ly-256
+                y1 = Ly
             
-        #2
-        if cx>Lx/2 and cy<=Ly/2:
-            x0 = Lx-8192
-            x1 = Lx
-            y0 = 0
-            y1 = 256
-            
-        #3
-        if cx<=Lx/2 and cy>Ly/2:
-            x0 = 0
-            x1 = 8192
-            y0 = Ly-256
-            y1 = Ly
-            
-        #4
-        if cx>Lx/2 and cy>Ly/2:
-            x0 = Lx-8192
-            x1 = Lx
-            y0 = Ly-256
-            y1 = Ly
+            self.fullmap = np.copy(self.datamap)[y0:y1,x0:x1]
+            self.fullmapweights = self.weightsmap[y0:y1,x0:x1]
+            self.fullmapheader["CRPIX1"] -= x0
+            self.fullmapheader["CRPIX2"] -= y0
         
-        self.fullmap = np.copy(self.datamap)[y0:y1,x0:x1]
-        self.fullmapweights = self.weightsmap[y0:y1,x0:x1]
-        self.fullmapheader["CRPIX1"] -= x0
-        self.fullmapheader["CRPIX2"] -= y0
+            self.fullmapw= wcs.WCS(self.fullmapheader)
         
-        self.fullmapw= wcs.WCS(self.fullmapheader)
+            cx,cy = self.getpix_fullmap(RA,DEC)
         
-        cx,cy = self.getpix_fullmap(RA,DEC)
+        if boostFT==False:
+            cx,cy = self.getpix(RA,DEC)
         
         self.submap = self.fullmap[cy-L/2:cy+L/2,cx-L/2:cx+L/2]
         self.submapw = self.weightsmap[cy-L/2:cy+L/2,cx-L/2:cx+L/2]
