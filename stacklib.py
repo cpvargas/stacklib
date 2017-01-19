@@ -486,10 +486,16 @@ class StackMap(object):
         #sources masked multiplying datamap with sourcesmap
         self.fullmap = np.copy(self.datamap)  #* self.sourcesmap
     '''
-    def setfullmap(self):
+    def setfullmap(self, boostFT = 'True'):
+        #boostFT accelerates fourier transforms because it shapes the fullmap
+        #as a rectangle with width and height of an exponent of 2
+                
         self.fullmapheader = self.maphdr.copy()
-        self.fullmapheader["NAXIS2"] = 256
-        self.fullmapheader["NAXIS1"] = 8192
+        if boostFT:
+            self.fullmapheader["NAXIS2"] = 256
+            self.fullmapheader["NAXIS1"] = 8192
+        else:
+            self.fullmap = np.copy(self.datamap)
         #CRPIX is changed later
     
     def getbeammap(self):
