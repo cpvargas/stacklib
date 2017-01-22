@@ -34,7 +34,7 @@ M.setfullmap(boostFT = 'False')
 
 M.fullmap = np.abs(M.fullmap*0)
 
-cat = sl.fakecatalog(100)
+cat = sl.fakecatalog(100,RA0,RA1,DEC0,DEC1,0.2)
 
 psize = np.abs(M.maphdr['CDELT1'])
 
