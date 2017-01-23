@@ -654,6 +654,7 @@ class StackMap(object):
         
         self.submap = self.fullmap[cy-L/2:cy+L/2,cx-L/2:cx+L/2]
         self.submapw = self.fullmapweights[cy-L/2:cy+L/2,cx-L/2:cx+L/2]
+        self.sigma = np.std(self.fullmap)
     
     def getsubmapSZ(self):
         I = (np.sum(self.taumap))*(0.00825*2*np.pi/360.)**2
