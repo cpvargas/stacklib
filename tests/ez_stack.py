@@ -1,10 +1,8 @@
-'''
-Simple script to test some functions and methods
+#Simple script to test some functions and methods
 
-Creates a fake catalog of 100 sources at [RA,DEC] inside fullmap area
-at each position pastes beammaps of amplitude -150 on a zero fullmap, 
-then it performs a stack of all beams.
-'''
+#Creates a catalog of 100 sources at [RA,DEC] inside the fullmap area
+#at each position pastes beammaps of amplitude -150 on a zero fullmap, 
+#then performs a stack of all beams.
 
 from datetime import datetime
 startTime = datetime.now()
@@ -29,27 +27,24 @@ DEC0 = -1.5
 DEC1 = 1.5
 
 M = sl.StackMap(m,w,b,s,RA0,RA1,DEC0,DEC1)
-
-M.setfullmap(boostFT = 'False')
-
+M.setfullmap()
 M.fullmap = np.abs(M.fullmap*0)
 
-cat = sl.fakecatalog(100,RA0,RA1,DEC0,DEC1,0.2)
+cat = sl.fakecatalog(100,RA0,RA1,DEC0,DEC1,0.3)
 
 psize = np.abs(M.maphdr['CDELT1'])
+Beam = -150*sl.beam(b,psize,10)              
 
-Beam = -150*sl.beam(b,psize,10)
-              
 for item in cat:
     loc = M.getpix(item[0],item[1])
     M.fullmap = sl.pastemap(M.fullmap, Beam, loc)
     
 M.setsubmapL(16)
-
 M.setstackmap()
 
 for item in cat:
-    M.setsubmap(item[0],item[1])    
+    M.setsfullmap(item[0],item[1])
+    M.getsubmap(item[0],item[1])
     M.stacksubmap()
     
 M.finishstack()

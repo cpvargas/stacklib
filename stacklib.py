@@ -489,15 +489,10 @@ class StackMap(object):
     def setfullmap(self, boostFT = 'True'):
         #boostFT accelerates fourier transforms because it shapes the fullmap
         #as a rectangle with width and height of an exponent of 2
-                
+        self.fullmap = np.copy(self.datamap)
+        self.fullmapweights = np.copy(self.weightsmap)
         self.fullmapheader = self.maphdr.copy()
-        if boostFT == 'True':
-            self.fullmapheader["NAXIS2"] = 256
-            self.fullmapheader["NAXIS1"] = 8192
-        if boostFT == 'False':
-            self.fullmap = np.copy(self.datamap)
-        #CRPIX is changed later
-    
+
     def getbeammap(self):
         self.beammap = beammap(self.beamfile, self.fullmapheader)
     
@@ -563,7 +558,13 @@ class StackMap(object):
         px, py = np.array(np.round(self.fullmapw.wcs_world2pix(coord, 0),0),
                           dtype=np.int_)[0]
         return px,py  
-              
+    
+    def getpix_sfullmap(self,RA,DEC):
+        coord = np.array([[RA,DEC]], dtype = np.float_)
+        px, py = np.array(np.round(self.sfullmapw.wcs_world2pix(coord, 0),0),
+                          dtype=np.int_)[0]
+        return px,py  
+        
     #submaps methods###########################################################
     def setsubmapL(self, L):
         '''
@@ -576,87 +577,63 @@ class StackMap(object):
         else:
             print("L must be even")
     
-    def setsubmap(self,RA,DEC, boostFT = True):
-        '''
-        sets the current submap centered at RA,DEC
-        
-        The center is at L/2,L/2.
-        
-        if the quadrants are 2|1
-                             3|4
-        the center is at the inferior left corner of 1
-        (using origin = "lower")
-        
-        L has to be setted before calling this method
-        '''
-        self.RA,self.DEC = RA,DEC
-        
-        cx, cy = self.getpix(RA,DEC)
-        
-        L = self.submapL
-        
-        Lx = self.maphdr["NAXIS1"]
-        Ly = self.maphdr["NAXIS2"]
-        
+    def setsfullmap(self,RA,DEC):
+        self.sfullmapcond = True
         #3 4
         #1 2
+        cx, cy = self.getpix(RA,DEC)
+        Lx = self.maphdr["NAXIS1"]
+        Ly = self.maphdr["NAXIS2"]
+        #1
+        if cx<=Lx/2 and cy<=Ly/2:
+            x0 = 0
+            x1 = 8192
+            y0 = 0
+            y1 = 256    
+        #2
+        if cx>Lx/2 and cy<=Ly/2:
+            x0 = Lx-8192
+            x1 = Lx
+            y0 = 0
+            y1 = 256
+        #3
+        if cx<=Lx/2 and cy>Ly/2:
+            x0 = 0
+            x1 = 8192
+            y0 = Ly-256
+            y1 = Ly
+        #4
+        if cx>Lx/2 and cy>Ly/2:
+            x0 = Lx-8192
+            x1 = Lx
+            y0 = Ly-256
+            y1 = Ly
+        self.sfullmap = np.copy(self.fullmap)[y0:y1,x0:x1]
+        self.sfullmapweights = self.weightsmap[y0:y1,x0:x1]
+        self.sfullmapheader = self.maphdr.copy()
+        self.sfullmapheader["NAXIS2"] = 256
+        self.sfullmapheader["NAXIS1"] = 8192  
+        self.sfullmapheader["CRPIX1"] -= x0
+        self.sfullmapheader["CRPIX2"] -= y0
+        self.sfullmapw= wcs.WCS(self.sfullmapheader)
         
-        assert type(boostFT)==bool
-        if boostFT==True:
-            #1
-            if cx<=Lx/2 and cy<=Ly/2:
-                x0 = 0
-                x1 = 8192
-                y0 = 0
-                y1 = 256    
-                
-            #2
-            if cx>Lx/2 and cy<=Ly/2:
-                x0 = Lx-8192
-                x1 = Lx
-                y0 = 0
-                y1 = 256
-                
-            #3
-            if cx<=Lx/2 and cy>Ly/2:
-                x0 = 0
-                x1 = 8192
-                y0 = Ly-256
-                y1 = Ly
-                
-            #4
-            if cx>Lx/2 and cy>Ly/2:
-                x0 = Lx-8192
-                x1 = Lx
-                y0 = Ly-256
-                y1 = Ly
-            
-            self.fullmap = np.copy(self.datamap)[y0:y1,x0:x1]
-            self.fullmapweights = self.weightsmap[y0:y1,x0:x1]
-            self.fullmapheader["CRPIX1"] -= x0
-            self.fullmapheader["CRPIX2"] -= y0
-        
-            self.fullmapw= wcs.WCS(self.fullmapheader)
-        
-            cx,cy = self.getpix_fullmap(RA,DEC)
-        
-        if boostFT==False:
-            cx,cy = self.getpix(RA,DEC)
-        
-        self.submap = self.fullmap[cy-L/2:cy+L/2,cx-L/2:cx+L/2]
-        self.submapw = self.weightsmap[cy-L/2:cy+L/2,cx-L/2:cx+L/2]
-    
-    def getsubmap(self):
-        
+    def getsubmap(self,RA,DEC):
         L = self.submapL
-        
-        cx,cy = self.getpix_fullmap(self.RA,self.DEC)
-        
-        self.submap = self.fullmap[cy-L/2:cy+L/2,cx-L/2:cx+L/2]
-        self.submapw = self.fullmapweights[cy-L/2:cy+L/2,cx-L/2:cx+L/2]
-        self.sigma = np.std(self.fullmap)
+        if self.sfullmapcond:
+            cx,cy = self.getpix_sfullmap(RA,DEC)
+            self.submap = np.copy(self.sfullmap[cy-L/2:cy+L/2,cx-L/2:cx+L/2])
+            self.submapw = np.copy(self.sfullmapweights[cy-L/2:cy+L/2,cx-L/2:cx+L/2])
+            self.sigma = np.std(self.sfullmap)
+        else:
+            cx,cy = self.getpix_fullmap(RA,DEC)
+            self.submap = np.copy(self.fullmap[cy-L/2:cy+L/2,cx-L/2:cx+L/2])
+            self.submapw = np.copy(self.fullmapweights[cy-L/2:cy+L/2,cx-L/2:cx+L/2])
+            self.sigma = np.std(self.fullmap)
     
     def getsubmapSZ(self):
+        '''
+        Transformation of units of the submap from Temperature to adimensional SZ
+        '''
         I = (np.sum(self.taumap))*(0.00825*2*np.pi/360.)**2
         Te = T_e_from_M_500(self.M_500, self.z)
         fsz = f_sz_rel(148,Te)
@@ -748,7 +725,6 @@ class StackMap(object):
         self.fullmapheader["CRPIX2"] -= 10
         self.fullmapw= wcs.WCS(self.fullmapheader)
         
-    
     def filterfullmap(self):
         self.filt = matchedfilter_one(self.fullmap,self.nc)
         self.fullmap = filtermap(self.fullmap,self.filt)
