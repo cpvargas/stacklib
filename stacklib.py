@@ -502,9 +502,20 @@ class StackMap(object):
         R_500 = R_500_from_M_500(M_500,z)
         self.R_500 = R_500
         self.taumap = Tau_map(R_500,z,self.fullmapheader)
-            
+        
     def getnormconv(self):
         self.nc = normalized_convolution(self.taumap,self.beammap)
+            
+    def getsbeammap(self):
+        self.sbeammap = beammap(self.beamfile, self.sfullmapheader)
+    
+    def getstaumap(self, M_500, z):
+        R_500 = R_500_from_M_500(M_500,z)
+        self.staumap = Tau_map(R_500,z,self.sfullmapheader)
+        
+    def getsnormconv(self):
+        self.snc = normalized_convolution(self.staumap,self.sbeammap)
+        
         
     def fakeclus(self,RA,DEC,R_500,z,radius):
         '''
