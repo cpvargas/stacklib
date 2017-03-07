@@ -5,7 +5,7 @@ import numpy as np
 from matplotlib import pyplot as plt #needs wcsaxes package for plots
 from scipy import interpolate
 from scipy import ndimage
-from scipy.misc import imresize
+from scipy.misc import imresize #needs pillow, pip install pillow
 from matplotlib.patches import Circle
 from astropy.cosmology import FlatLambdaCDM
 from scipy import integrate
@@ -486,12 +486,13 @@ class StackMap(object):
         #sources masked multiplying datamap with sourcesmap
         self.fullmap = np.copy(self.datamap)  #* self.sourcesmap
     '''
-    def setfullmap(self, boostFT = 'True'):
+    def setfullmap(self):
         #boostFT accelerates fourier transforms because it shapes the fullmap
         #as a rectangle with width and height of an exponent of 2
         self.fullmap = np.copy(self.datamap)
         self.fullmapweights = np.copy(self.weightsmap)
         self.fullmapheader = self.maphdr.copy()
+        #FIX self.sfullmapcond
 
     def getbeammap(self):
         self.beammap = beammap(self.beamfile, self.fullmapheader)
@@ -630,7 +631,7 @@ class StackMap(object):
         
     def getsubmap(self,RA,DEC):
         L = self.submapL
-        if self.sfullmapcond:
+        if self.sfullmapcond == True:
             cx,cy = self.getpix_sfullmap(RA,DEC)
             self.submap = np.copy(self.sfullmap[cy-L/2:cy+L/2,cx-L/2:cx+L/2])
             self.submapw = np.copy(self.sfullmapweights[cy-L/2:cy+L/2,cx-L/2:cx+L/2])
@@ -719,7 +720,10 @@ class StackMap(object):
         '''
         self.N_max = np.amax(self.fullmapweights)
         self.fullmap *= np.sqrt(self.fullmapweights/self.N_max)
-
+        
+    def squeezesfullmap(self):
+        self.N_max = np.amax(self.sfullmapweights)
+        self.sfullmap *= np.sqrt(self.sfullmapweights/self.N_max)
 
     #filter methods############################################################
     def filterfullmap_clus(self,R_500,z):
@@ -749,6 +753,16 @@ class StackMap(object):
         self.fullmapheader["CRPIX2"] -= 10
         self.fullmapw= wcs.WCS(self.fullmapheader)        
         
+    def filtersfullmap(self):
+        self.filt = matchedfilter_one(self.sfullmap,self.snc)
+        self.sfullmap = filtermap(self.sfullmap,self.filt)
+        Lx = self.fullmap.shape[1]
+        Ly = self.fullmap.shape[0]
+        self.sfullmap = self.sfullmap[10:Ly-10,10:Lx-10]
+        self.sfullmapweights = self.sfullmapweights[10:Ly-10,10:Lx-10]
+        self.sfullmapheader["CRPIX1"] -= 10
+        self.sfullmapheader["CRPIX2"] -= 10
+        self.sfullmapw= wcs.WCS(self.sfullmapheader)           
         
     ###########################################################################
     def unsqueezefullmap(self):
@@ -757,7 +771,11 @@ class StackMap(object):
         '''
         self.fullmap *= np.sqrt(self.N_max/self.fullmapweights)    
 
-
+    def unsqueezesfullmap(self):
+        '''
+        Reverse the pixel-wise multiplication
+        '''
+        self.sfullmap *= np.sqrt(self.N_max/self.sfullmapweights)    
 
     
     
